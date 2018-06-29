@@ -1,0 +1,9 @@
+Set up:
+
+Reference: https://gobot.io/documentation/platforms/sprkplus/
+
+go get -d -u gobot.io/x/gobot/...
+go get -d -u github.com/nsf/termbox-go
+
+Running: 
+go run main.go SK-E1F8

@@ -1,0 +1,11 @@
+main
+deploy.sh
+
+pkg/
+
+src/github.com
+src/go.bug.st
+src/gobot.io
+src/gocv.io
+src/golang.org
+src/periph.io
