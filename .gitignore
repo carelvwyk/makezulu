@@ -2,6 +2,7 @@ main
 deploy.sh
 
 pkg/
+keys/
 
 src/github.com
 src/go.bug.st

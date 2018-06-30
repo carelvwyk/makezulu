@@ -1,9 +1,12 @@
 package main
 
 import (
+	"aws_iot"
 	"errors"
+	"flag"
 	"log"
 	"os"
+	"time"
 
 	term "github.com/nsf/termbox-go"
 	"gobot.io/x/gobot"
@@ -12,6 +15,12 @@ import (
 )
 
 const deviceName = "Sphero Spark+"
+
+var (
+	privKey   = flag.String("iot_privkey", "", "AWS IoT Thing Private Key")
+	cert      = flag.String("iot_cert", "", "AWS IoT Thing Certificate")
+	thingName = flag.String("iot_thingname", "", "AWS IoT Thing name")
+)
 
 func main() {
 	bleAdaptor := ble.NewClientAdaptor(os.Args[1])
@@ -22,8 +31,18 @@ func main() {
 	sprk := sprkplus.NewDriver(bleAdaptor)
 	sprk.SetName(deviceName)
 
-	evts := sprk.Subscribe()
+	work := func() {
+		// Remove that which you do not need
+		gobot.Every(1*time.Second, func() {
+			r := uint8(gobot.Rand(255))
+			g := uint8(gobot.Rand(255))
+			b := uint8(gobot.Rand(255))
+			sprk.SetRGB(r, g, b)
+		})
+	}
+
 	go func() {
+		evts := sprk.Subscribe()
 		for e := range evts {
 			log.Printf("BOT EVENT: %+v", e)
 		}
@@ -32,10 +51,10 @@ func main() {
 	robot := gobot.NewRobot("sprk",
 		[]gobot.Connection{bleAdaptor},
 		[]gobot.Device{sprk},
-		nil,
+		work,
 	)
 
-	// Non-blocking start:
+	// Non-blocking start ("false" parameter):
 	if err := robot.Start(false); err != nil {
 		log.Printf("Error starting robot: %v", err)
 	}
@@ -88,4 +107,47 @@ func handleKeyboardInputForever(robot *gobot.Robot) error {
 			return ev.Err
 		}
 	}
+}
+
+func iotPubSubDemo() {
+	flag.Parse()
+
+	iotClient, err := aws_iot.New(*thingName, *privKey, *cert, "us-east-2")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	// Handle incoming messages:
+	go func() {
+		subChan := iotClient.SubChannel()
+		for msg := range subChan {
+			log.Println(msg.String())
+		}
+	}()
+
+	// Publish outgoing messages:
+	go func() {
+		pubChan := iotClient.PubChannel()
+		newState := map[string]interface{}{
+			"state": map[string]interface{}{
+				"reported": map[string]interface{}{
+					"red":   187,
+					"green": 114,
+					"blue":  222,
+				},
+			},
+		}
+		log.Printf("Sending: %+v", newState)
+		pubChan <- newState
+		// Wait to receive and handle a response:
+		time.Sleep(time.Second * 5)
+		iotClient.Stop()
+	}()
+
+	if err := iotClient.Connect(); err != nil {
+		log.Printf("iot client error: %v", err)
+	}
+
+	log.Println("DONE")
 }
